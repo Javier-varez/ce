@@ -117,8 +117,11 @@ pub async fn compile(
     });
 
     let client = reqwest::Client::new();
+    let request_url = format!("{}/api/compiler/{}/compile", ce_instance, compiler);
+    ::log::debug!("Post: {}", request_url);
+
     let response = client
-        .post(format!("{}/api/compiler/{}/compile", ce_instance, compiler))
+        .post(request_url)
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
         .json(&request_body)

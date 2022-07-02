@@ -17,3 +17,7 @@ serde_json = "1.0"
 thiserror = "1.0"
 tui = "0.18"
 crossterm = { version = "0.23", features = ["event-stream"] }
+log = { version = "0.4" }
+simplelog = "0.12"
+dirs-next = "2.0"
+ansi-parser = "0.8"
