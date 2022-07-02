@@ -77,6 +77,7 @@ dependencies = [
  "structopt",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tui",
 ]
 
@@ -131,6 +132,7 @@ checksum = "a2102ea4f781910f8a5b98dd061f4c2023f479ce7bb1236330099ceb5a93cf17"
 dependencies = [
  "bitflags",
  "crossterm_winapi",
+ "futures-core",
  "libc",
  "mio 0.8.4",
  "parking_lot",
@@ -1132,6 +1134,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-stream"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df54d54117d6fdc4e4fea40fe1e4e566b3505700e148a6827e59b34b0d2600d9"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
  "tokio",
 ]
 

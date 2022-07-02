@@ -19,5 +19,5 @@ struct ThisIsAStruct {
 
 int main() {
   ThisIsAStruct<"Noice">::print();
-  return 1234;
+  return 12;
 }

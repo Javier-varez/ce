@@ -1,20 +1,23 @@
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::Borders;
-use tui::widgets::Wrap;
-use tui::widgets::{Block, Paragraph};
-use tui::{backend::CrosstermBackend, Terminal};
+use tui::{
+    backend::Backend,
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Terminal,
+};
 
-pub fn init() -> Result<(), std::io::Error> {
-    let stdout = std::io::stdout();
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
+pub fn update<B: Backend>(
+    terminal: &mut Terminal<B>,
+    compilation: &crate::compiler_explorer::CompilationResult,
+) -> Result<(), std::io::Error> {
     terminal
         .draw(|f| {
-            let text = vec![Spans::from("Hello world!")];
+            let mut text = vec![];
+            for asm in &compilation.asm {
+                text.push(Spans::from(format!("{}", asm.text)));
+            }
             let block = Block::default().borders(Borders::ALL).title(Span::styled(
-                "This is a block!",
+                "ASM",
                 Style::default()
                     .fg(Color::Magenta)
                     .add_modifier(Modifier::BOLD),
@@ -26,5 +29,3 @@ pub fn init() -> Result<(), std::io::Error> {
         .unwrap();
     Ok(())
 }
-
-pub fn update() {}

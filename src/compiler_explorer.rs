@@ -3,9 +3,9 @@ use serde_json::value::Value;
 #[derive(Debug)]
 pub struct CompilationResult {
     pub code: i64,
-    pub stdout: String,
-    pub stderr: String,
-    pub asm: Vec<String>,
+    pub stdout: Vec<StreamOutput>,
+    pub stderr: Vec<StreamOutput>,
+    pub asm: Vec<AsmOutput>,
 }
 
 #[derive(Debug)]
@@ -130,15 +130,11 @@ pub async fn compile(
     }
 
     let json: serde_json::Map<_, _> = response.json().await?;
-    println!("code: {}", json["code"].as_i64().unwrap());
-    println!("stdout: {:?}", parse_stream(&json["stdout"])?);
-    println!("stderr: {:?}", parse_stream(&json["stderr"])?);
-    println!("asm: {:?}", parse_asm(&json["asm"])?);
     let result = CompilationResult {
         code: json["code"].as_i64().ok_or(Error::InvalidErrorCode)?,
-        stdout: json["stdout"].as_str().unwrap().to_owned(),
-        stderr: json["stderr"].as_str().unwrap().to_owned(),
-        asm: vec![],
+        stdout: parse_stream(&json["stdout"])?,
+        stderr: parse_stream(&json["stderr"])?,
+        asm: parse_asm(&json["asm"])?,
     };
 
     return Ok(result);
