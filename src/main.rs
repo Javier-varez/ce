@@ -49,6 +49,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     enable_raw_mode()?;
     execute!(terminal.backend_mut(), EnterAlternateScreen)?;
 
+    let mut ui = tui::Ui::new();
+    ui.draw(&mut terminal)?;
+
     let cannonical_path = std::fs::canonicalize(&opts.file)?;
     let parent = cannonical_path.parent().unwrap();
 
@@ -76,7 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         &opts.args[..],
     )
     .await?;
-    tui::update(&mut terminal, &result)?;
+    ui.set_data(result);
+    ui.draw(&mut terminal)?;
 
     let mut event_stream = crossterm::event::EventStream::new();
     loop {
@@ -89,6 +93,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         Some(Ok(Event::Key(KeyEvent { code: KeyCode::Esc, .. }))) => {
                             ::log::info!("Exiting");
                             break;
+                        }
+                        Some(Ok(Event::Key(event))) => {
+                            ui.handle_key_event(event, &mut terminal);
                         }
                         _ => {}
                     }
@@ -109,7 +116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                         )
                         .await?;
 
-                        tui::update(&mut terminal, &result)?;
+                        ui.set_data(result);
+                        ui.draw(&mut terminal)?;
                     }
                     Some(notify::DebouncedEvent::Error(e, f)) => {
                         ::log::error!("Error {:?} watching file: {:?}", e, f);

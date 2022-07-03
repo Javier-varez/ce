@@ -1,6 +1,6 @@
 use serde_json::value::Value;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CompilationResult {
     pub code: i64,
     pub stdout: Vec<StreamOutput>,
@@ -8,13 +8,13 @@ pub struct CompilationResult {
     pub asm: Vec<AsmOutput>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StreamOutput {
     pub text: String,
     pub tag: Option<(i64, String)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AsmOutput {
     pub text: String,
     pub source: Option<(Option<String>, i64)>,
