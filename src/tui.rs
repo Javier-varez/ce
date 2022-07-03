@@ -1,43 +1,29 @@
-use ansi_parser::AnsiParser;
+use ansi_to_tui::ansi_to_text;
 use tui::{
     backend::Backend,
-    style::{self, Color, Modifier, Style},
-    text::{Span, Spans},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
     widgets::{Block, Borders, Paragraph, Wrap},
     Terminal,
 };
-
-fn parse_ansi_text(raw_text: &str) -> Result<Vec<Span>, std::io::Error> {
-    let mut text = vec![];
-    let mut parsed_escape = raw_text.ansi_parse();
-    while let Some(parsed_escape) = parsed_escape.next() {
-        if let ansi_parser::Output::TextBlock(new_text) = parsed_escape {
-            text.push(Span::styled(new_text, style::Style::default()));
-        }
-    }
-    Ok(text)
-}
 
 pub fn update<B: Backend>(
     terminal: &mut Terminal<B>,
     compilation: &crate::compiler_explorer::CompilationResult,
 ) -> Result<(), std::io::Error> {
-    let mut asm_text = vec![];
+    let mut asm_text = Text::default();
     for asm in &compilation.asm {
-        let fragment = parse_ansi_text(&asm.text)?;
-        asm_text.push(Spans::from(fragment));
+        asm_text.extend(ansi_to_text(asm.text.bytes()).unwrap());
     }
 
-    let mut stdout_text = vec![];
+    let mut stdout_text = Text::default();
     for stdout in &compilation.stdout {
-        let fragment = parse_ansi_text(&stdout.text)?;
-        stdout_text.push(Spans::from(fragment));
+        stdout_text.extend(ansi_to_text(stdout.text.bytes()).unwrap());
     }
 
-    let mut stderr_text = vec![];
+    let mut stderr_text = Text::default();
     for stderr in &compilation.stderr {
-        let fragment = parse_ansi_text(&stderr.text)?;
-        stderr_text.push(Spans::from(fragment));
+        stderr_text.extend(ansi_to_text(stderr.text.bytes()).unwrap());
     }
 
     terminal

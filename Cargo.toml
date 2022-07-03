@@ -20,4 +20,4 @@ crossterm = { version = "0.23", features = ["event-stream"] }
 log = { version = "0.4" }
 simplelog = "0.12"
 dirs-next = "2.0"
-ansi-parser = "0.8"
+ansi-to-tui = "0.6"
