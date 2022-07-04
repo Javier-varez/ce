@@ -10,7 +10,7 @@ use tui::{
     Terminal,
 };
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 enum Widgets {
     Asm = 0,
     Stdout,
@@ -31,6 +31,7 @@ impl Default for WidgetConfig {
 pub struct Ui {
     selected_widget: Widgets,
     widget_config: [WidgetConfig; 3],
+    focus: Option<Widgets>,
     data: Option<CompilationResult>,
 }
 
@@ -39,12 +40,17 @@ impl Ui {
         Self {
             selected_widget: Widgets::Asm,
             widget_config: [WidgetConfig::default(); 3],
+            focus: None,
             data: None,
         }
     }
 
     pub fn set_data(&mut self, compilation: CompilationResult) {
         self.data = Some(compilation);
+        // Reset offsets
+        self.widget_config
+            .iter_mut()
+            .for_each(|config| config.offset = 0);
     }
 
     pub fn handle_key_event<B: Backend>(
@@ -74,7 +80,7 @@ impl Ui {
                 }
                 true
             }
-            (KeyCode::Char('J'), KeyModifiers::SHIFT) => {
+            (KeyCode::Char('J'), KeyModifiers::SHIFT) if self.focus.is_none() => {
                 self.selected_widget = match self.selected_widget {
                     Widgets::Asm => Widgets::Stdout,
                     Widgets::Stdout => Widgets::Stderr,
@@ -82,12 +88,23 @@ impl Ui {
                 };
                 true
             }
-            (KeyCode::Char('K'), KeyModifiers::SHIFT) => {
+            (KeyCode::Char('K'), KeyModifiers::SHIFT) if self.focus.is_none() => {
                 self.selected_widget = match self.selected_widget {
                     Widgets::Asm => Widgets::Stderr,
                     Widgets::Stdout => Widgets::Asm,
                     Widgets::Stderr => Widgets::Stdout,
                 };
+                true
+            }
+            (KeyCode::Enter, _) => {
+                match self.focus {
+                    None => {
+                        self.focus = Some(self.selected_widget);
+                    }
+                    Some(_) => {
+                        self.focus = None;
+                    }
+                }
                 true
             }
             _ => false,
@@ -137,19 +154,30 @@ impl Ui {
         );
 
         terminal
-            .draw(|f| {
-                let parts = tui::layout::Layout::default()
-                    .direction(tui::layout::Direction::Vertical)
-                    .constraints([
-                        tui::layout::Constraint::Percentage(33),
-                        tui::layout::Constraint::Percentage(33),
-                        tui::layout::Constraint::Percentage(33),
-                    ])
-                    .split(f.size());
+            .draw(|f| match self.focus {
+                Some(Widgets::Asm) => {
+                    f.render_widget(asm_block, f.size());
+                }
+                Some(Widgets::Stdout) => {
+                    f.render_widget(stdout_block, f.size());
+                }
+                Some(Widgets::Stderr) => {
+                    f.render_widget(stderr_block, f.size());
+                }
+                None => {
+                    let parts = tui::layout::Layout::default()
+                        .direction(tui::layout::Direction::Vertical)
+                        .constraints([
+                            tui::layout::Constraint::Percentage(33),
+                            tui::layout::Constraint::Percentage(33),
+                            tui::layout::Constraint::Percentage(33),
+                        ])
+                        .split(f.size());
 
-                f.render_widget(asm_block, parts[0]);
-                f.render_widget(stdout_block, parts[1]);
-                f.render_widget(stderr_block, parts[2]);
+                    f.render_widget(asm_block, parts[0]);
+                    f.render_widget(stdout_block, parts[1]);
+                    f.render_widget(stderr_block, parts[2]);
+                }
             })
             .unwrap();
         Ok(())
