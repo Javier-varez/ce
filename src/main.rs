@@ -95,8 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             break;
                         }
                         Some(Ok(Event::Key(event))) => {
-                            ui.handle_key_event(event, &mut terminal);
+                            ui.handle_key_event(event, &mut terminal)?;
                         }
+                        Some(Ok(Event::Resize(_,_))) => {
+                            ui.draw(&mut terminal)?;
+                    }
                         _ => {}
                     }
                 }
