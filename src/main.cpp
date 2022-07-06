@@ -1,23 +1,33 @@
+#include <cstdint>
 #include <cstdio>
-#include <cstring>
+#include <new>
+#include <utility>
 
-template <unsigned long long N>
-struct ConstexprString {
-  char name[N];
+template <class T, std::size_t N>
+class vector {
+ public:
+  vector() noexcept = default;
 
-  constexpr ConstexprString(const char (&str)[N]) {
-    for (unsigned long long i = 0; i < N; i++) {
-      name[i] = str[i];
-    }
+  template <typename... Args>
+  void emplace_back(Args&&... args) noexcept {
+    new (&mData[mSize++ * sizeof(T)]) T(std::forward<Args>(args)...);
   }
+
+ private:
+  alignas(T) char mData[sizeof(T) * N];
+  std::size_t mSize{0};
 };
 
-template <ConstexprString string>
-struct ThisIsAStruct {
-  static void print() { printf("Value: %s\n", string.name); }
+class Mytype {
+ public:
+  Mytype(int, const char*) {}
+
+ private:
 };
 
 int main() {
-  ThisIsAStruct<"Noice">::print();
-  return 12;
+  vector<Mytype, 10> i;
+  i.emplace_back(1, "");
+  printf("Hi there!!\n");
+  return 32;
 }

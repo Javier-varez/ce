@@ -1,11 +1,19 @@
 use serde_json::value::Value;
 
 #[derive(Debug, Clone)]
+pub struct ExecutionResult {
+    pub code: i64,
+    pub stdout: Vec<StreamOutput>,
+    pub stderr: Vec<StreamOutput>,
+}
+
+#[derive(Debug, Clone)]
 pub struct CompilationResult {
     pub code: i64,
     pub stdout: Vec<StreamOutput>,
     pub stderr: Vec<StreamOutput>,
     pub asm: Vec<AsmOutput>,
+    pub execution: Option<ExecutionResult>,
 }
 
 #[derive(Debug, Clone)]
@@ -32,10 +40,12 @@ pub enum Error {
     InvalidAsm,
     #[error("Error parsing error code")]
     InvalidErrorCode,
-    #[error("Error parsing error code")]
+    #[error("Invalid HTTP response: {0}")]
     InvalidHttpResponse(String),
-    #[error("Error parsing error code")]
+    #[error("HTTP Error: {0}")]
     HttpError(#[from] reqwest::Error),
+    #[error("Invalid build result")]
+    InvalidBuildResult,
 }
 
 fn parse_asm(json_array: &Value) -> Result<Vec<AsmOutput>, Error> {
@@ -100,18 +110,22 @@ fn parse_stream(json_array: &Value) -> Result<Vec<StreamOutput>, Error> {
     }
 }
 
-pub async fn compile(
+pub async fn execute(
     ce_instance: &str,
     compiler: &str,
     src: &str,
     arguments: &[String],
-) -> Result<CompilationResult, Error> {
+) -> Result<ExecutionResult, Error> {
     let args = arguments.join(" ");
 
     let request_body = serde_json::json!({
         "source": src,
         "options": {
-            "userArguments": args
+            "userArguments": args,
+            "compilerOptions": {
+                "skipAsm": true,
+                "executorRequest": true
+            }
         },
         "allowStoreCodeDebug": true
     });
@@ -129,15 +143,84 @@ pub async fn compile(
         .await?;
 
     if response.status() != reqwest::StatusCode::OK {
+        log::error!("HTTP status code {}", response.status());
         return Err(Error::InvalidHttpResponse(response.text().await?));
     }
 
     let json: serde_json::Map<_, _> = response.json().await?;
+    log::info!("HTTP response: {:?}", json);
+    let result = ExecutionResult {
+        code: json["code"].as_i64().ok_or(Error::InvalidErrorCode)?,
+        stdout: json
+            .get("stdout")
+            .and_then(|data| parse_stream(data).ok())
+            .unwrap_or(vec![]),
+        stderr: json
+            .get("stderr")
+            .and_then(|data| parse_stream(data).ok())
+            .unwrap_or(vec![]),
+    };
+    Ok(result)
+}
+
+pub async fn compile(
+    ce_instance: &str,
+    compiler: &str,
+    src: &str,
+    arguments: &[String],
+    run_program: bool,
+) -> Result<CompilationResult, Error> {
+    let args = arguments.join(" ");
+
+    let request_body = serde_json::json!({
+        "source": src,
+        "options": {
+            "userArguments": args,
+        },
+        "allowStoreCodeDebug": true
+    });
+
+    let client = reqwest::Client::new();
+    let request_url = format!("{}/api/compiler/{}/compile", ce_instance, compiler);
+    ::log::debug!("Post: {}", request_url);
+
+    let response = client
+        .post(request_url)
+        .header("Content-Type", "application/json")
+        .header("Accept", "application/json")
+        .json(&request_body)
+        .send()
+        .await?;
+
+    if response.status() != reqwest::StatusCode::OK {
+        log::error!("HTTP status code {}", response.status());
+        return Err(Error::InvalidHttpResponse(response.text().await?));
+    }
+
+    let json: serde_json::Map<_, _> = response.json().await?;
+    log::info!("HTTP response: {:?}", json);
+
+    let execution_result = if run_program {
+        Some(execute(ce_instance, compiler, src, arguments).await?)
+    } else {
+        None
+    };
+
     let result = CompilationResult {
         code: json["code"].as_i64().ok_or(Error::InvalidErrorCode)?,
-        stdout: parse_stream(&json["stdout"])?,
-        stderr: parse_stream(&json["stderr"])?,
-        asm: parse_asm(&json["asm"])?,
+        stdout: json
+            .get("stdout")
+            .and_then(|data| parse_stream(data).ok())
+            .unwrap_or(vec![]),
+        stderr: json
+            .get("stderr")
+            .and_then(|data| parse_stream(data).ok())
+            .unwrap_or(vec![]),
+        asm: json
+            .get("asm")
+            .and_then(|data| parse_asm(data).ok())
+            .unwrap_or(vec![]),
+        execution: execution_result,
     };
 
     return Ok(result);

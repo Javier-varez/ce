@@ -19,28 +19,40 @@ enum Widgets {
 
 #[derive(Clone, Copy)]
 struct WidgetConfig {
-    offset: u16,
+    vertical_offset: u16,
+    horizontal_offset: u16,
 }
 
 impl Default for WidgetConfig {
     fn default() -> Self {
-        Self { offset: 0 }
+        Self {
+            vertical_offset: 0,
+            horizontal_offset: 0,
+        }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Orientation {
+    Vertical,
+    Horizontal,
 }
 
 pub struct Ui {
     selected_widget: Widgets,
     widget_config: [WidgetConfig; 3],
     focus: Option<Widgets>,
+    orientation: Orientation,
     data: Option<CompilationResult>,
 }
 
 impl Ui {
-    pub fn new() -> Self {
+    pub fn new(orientation: Orientation) -> Self {
         Self {
             selected_widget: Widgets::Asm,
             widget_config: [WidgetConfig::default(); 3],
             focus: None,
+            orientation,
             data: None,
         }
     }
@@ -50,7 +62,7 @@ impl Ui {
         // Reset offsets
         self.widget_config
             .iter_mut()
-            .for_each(|config| config.offset = 0);
+            .for_each(|config| config.vertical_offset = 0);
     }
 
     pub fn handle_key_event<B: Backend>(
@@ -66,7 +78,7 @@ impl Ui {
                     Widgets::Stdout => &mut self.widget_config[1],
                     Widgets::Stderr => &mut self.widget_config[2],
                 };
-                config.offset += 1;
+                config.vertical_offset += 1;
                 true
             }
             (KeyCode::Char('k'), KeyModifiers::NONE) => {
@@ -75,12 +87,34 @@ impl Ui {
                     Widgets::Stdout => &mut self.widget_config[1],
                     Widgets::Stderr => &mut self.widget_config[2],
                 };
-                if config.offset > 0 {
-                    config.offset -= 1;
+                if config.vertical_offset > 0 {
+                    config.vertical_offset -= 1;
                 }
                 true
             }
-            (KeyCode::Char('J'), KeyModifiers::SHIFT) if self.focus.is_none() => {
+            (KeyCode::Char('l'), KeyModifiers::NONE) => {
+                let config = match self.selected_widget {
+                    Widgets::Asm => &mut self.widget_config[0],
+                    Widgets::Stdout => &mut self.widget_config[1],
+                    Widgets::Stderr => &mut self.widget_config[2],
+                };
+                config.horizontal_offset += 1;
+                true
+            }
+            (KeyCode::Char('h'), KeyModifiers::NONE) => {
+                let config = match self.selected_widget {
+                    Widgets::Asm => &mut self.widget_config[0],
+                    Widgets::Stdout => &mut self.widget_config[1],
+                    Widgets::Stderr => &mut self.widget_config[2],
+                };
+                if config.horizontal_offset > 0 {
+                    config.horizontal_offset -= 1;
+                }
+                true
+            }
+            (KeyCode::Char('J'), KeyModifiers::SHIFT)
+                if self.focus.is_none() && self.orientation == Orientation::Vertical =>
+            {
                 self.selected_widget = match self.selected_widget {
                     Widgets::Asm => Widgets::Stdout,
                     Widgets::Stdout => Widgets::Stderr,
@@ -88,7 +122,29 @@ impl Ui {
                 };
                 true
             }
-            (KeyCode::Char('K'), KeyModifiers::SHIFT) if self.focus.is_none() => {
+            (KeyCode::Char('L'), KeyModifiers::SHIFT)
+                if self.focus.is_none() && self.orientation == Orientation::Horizontal =>
+            {
+                self.selected_widget = match self.selected_widget {
+                    Widgets::Asm => Widgets::Stdout,
+                    Widgets::Stdout => Widgets::Stderr,
+                    Widgets::Stderr => Widgets::Asm,
+                };
+                true
+            }
+            (KeyCode::Char('K'), KeyModifiers::SHIFT)
+                if self.focus.is_none() && self.orientation == Orientation::Vertical =>
+            {
+                self.selected_widget = match self.selected_widget {
+                    Widgets::Asm => Widgets::Stderr,
+                    Widgets::Stdout => Widgets::Asm,
+                    Widgets::Stderr => Widgets::Stdout,
+                };
+                true
+            }
+            (KeyCode::Char('H'), KeyModifiers::SHIFT)
+                if self.focus.is_none() && self.orientation == Orientation::Horizontal =>
+            {
                 self.selected_widget = match self.selected_widget {
                     Widgets::Asm => Widgets::Stderr,
                     Widgets::Stdout => Widgets::Asm,
@@ -132,26 +188,61 @@ impl Ui {
             for stderr in &compilation.stderr {
                 stderr_text.extend(ansi_to_text(stderr.text.bytes()).unwrap());
             }
+
+            if let Some(execution_result) = &compilation.execution {
+                for stdout in &execution_result.stdout {
+                    stdout_text.extend(ansi_to_text(stdout.text.bytes()).unwrap());
+                }
+
+                for stderr in &execution_result.stderr {
+                    stderr_text.extend(ansi_to_text(stderr.text.bytes()).unwrap());
+                }
+            }
         }
 
+        let mut num_blocks = 0;
+        let mut show_asm = false;
+        if !asm_text.lines.is_empty() {
+            num_blocks += 1;
+            show_asm = true;
+        }
         let asm_block = Self::draw_paragraph_block(
             "ASM",
             asm_text,
             self.selected_widget == Widgets::Asm,
             &self.widget_config[0],
         );
+        let mut show_stdout = false;
+        if !stdout_text.lines.is_empty() {
+            num_blocks += 1;
+            show_stdout = true;
+        }
         let stdout_block = Self::draw_paragraph_block(
             "Stdout",
             stdout_text,
             self.selected_widget == Widgets::Stdout,
             &self.widget_config[1],
         );
+        let mut show_stderr = false;
+        if !stderr_text.lines.is_empty() {
+            num_blocks += 1;
+            show_stderr = true;
+        }
         let stderr_block = Self::draw_paragraph_block(
             "Stderr",
             stderr_text,
             self.selected_widget == Widgets::Stderr,
             &self.widget_config[2],
         );
+
+        if num_blocks == 0 {
+            num_blocks = 1;
+        }
+        let percentage = 100 / num_blocks;
+        let mut constraints = vec![];
+        for _ in 0..num_blocks {
+            constraints.push(tui::layout::Constraint::Percentage(percentage));
+        }
 
         terminal
             .draw(|f| match self.focus {
@@ -166,17 +257,23 @@ impl Ui {
                 }
                 None => {
                     let parts = tui::layout::Layout::default()
-                        .direction(tui::layout::Direction::Vertical)
-                        .constraints([
-                            tui::layout::Constraint::Percentage(33),
-                            tui::layout::Constraint::Percentage(33),
-                            tui::layout::Constraint::Percentage(33),
-                        ])
+                        .direction(if self.orientation == Orientation::Vertical {
+                            tui::layout::Direction::Vertical
+                        } else {
+                            tui::layout::Direction::Horizontal
+                        })
+                        .constraints(constraints)
                         .split(f.size());
 
-                    f.render_widget(asm_block, parts[0]);
-                    f.render_widget(stdout_block, parts[1]);
-                    f.render_widget(stderr_block, parts[2]);
+                    if show_asm {
+                        f.render_widget(asm_block, parts[0]);
+                    }
+                    if show_stdout {
+                        f.render_widget(stdout_block, parts[1]);
+                    }
+                    if show_stderr {
+                        f.render_widget(stderr_block, parts[2]);
+                    }
                 }
             })
             .unwrap();
@@ -206,6 +303,6 @@ impl Ui {
         Paragraph::new(text)
             .block(block)
             .wrap(Wrap { trim: false })
-            .scroll((config.offset, 0))
+            .scroll((config.vertical_offset, config.horizontal_offset))
     }
 }

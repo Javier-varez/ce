@@ -27,6 +27,12 @@ struct Opts {
     #[structopt(short, long)]
     log: bool,
 
+    #[structopt(short = "v", long = "vertical")]
+    vertical_orientation: bool,
+
+    #[structopt(short, long)]
+    execute: bool,
+
     #[structopt(name = "FILE")]
     file: std::path::PathBuf,
 
@@ -42,6 +48,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         log::configure_logger()?;
     }
 
+    let orientation = if opts.vertical_orientation {
+        println!("vertical orientation");
+        tui::Orientation::Vertical
+    } else {
+        println!("horizontal orientation");
+        tui::Orientation::Horizontal
+    };
+
     let stdout = std::io::stdout();
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -49,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     enable_raw_mode()?;
     execute!(terminal.backend_mut(), EnterAlternateScreen)?;
 
-    let mut ui = tui::Ui::new();
+    let mut ui = tui::Ui::new(orientation);
     ui.draw(&mut terminal)?;
 
     let cannonical_path = std::fs::canonicalize(&opts.file)?;
@@ -77,6 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         &opts.compiler,
         &file_contents,
         &opts.args[..],
+        opts.execute,
     )
     .await?;
     ui.set_data(result);
@@ -116,6 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                             &opts.compiler,
                             &file_contents,
                             &opts.args[..],
+                            opts.execute,
                         )
                         .await?;
 
