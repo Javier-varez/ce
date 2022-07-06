@@ -44,8 +44,6 @@ pub enum Error {
     InvalidHttpResponse(String),
     #[error("HTTP Error: {0}")]
     HttpError(#[from] reqwest::Error),
-    #[error("Invalid build result")]
-    InvalidBuildResult,
 }
 
 fn parse_asm(json_array: &Value) -> Result<Vec<AsmOutput>, Error> {

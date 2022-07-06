@@ -265,14 +265,17 @@ impl Ui {
                         .constraints(constraints)
                         .split(f.size());
 
+                    let mut used_constraints = 0;
                     if show_asm {
-                        f.render_widget(asm_block, parts[0]);
+                        f.render_widget(asm_block, parts[used_constraints]);
+                        used_constraints += 1;
                     }
                     if show_stdout {
-                        f.render_widget(stdout_block, parts[1]);
+                        f.render_widget(stdout_block, parts[used_constraints]);
+                        used_constraints += 1;
                     }
                     if show_stderr {
-                        f.render_widget(stderr_block, parts[2]);
+                        f.render_widget(stderr_block, parts[used_constraints]);
                     }
                 }
             })
